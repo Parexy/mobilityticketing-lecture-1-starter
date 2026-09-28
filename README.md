@@ -51,3 +51,103 @@ Do not add MongoDB, Redis, queues, payment logic, validation logic, reporting ta
 - `docs/lab.md`: student-facing lab brief and submission checklist.
 
 The sample solution is intentionally not included in this repository.
+
+---
+
+# Submission
+
+## System context
+
+The Mobility Ticketing system supports customers travelling by bus,
+tram, and train in a city.
+
+Customers can search for routes and departures, purchase tickets,
+and validate tickets when boarding.
+
+Transport operators maintain routes, stops, timetables, products,
+and prices, and use historical ticketing information for reporting.
+
+The Lecture 1 implementation only models the route and timetable
+portion of the system.
+
+## Access-pattern map
+
+| Workload | Main data required | Characteristics |
+|---|---|---|
+| Journey search | Routes, stops, trips, prices, availability | Read-heavy and latency-sensitive |
+| Ticket purchase | Trips, products, tickets, payments, capacity | Correctness-critical |
+| Ticket validation | Tickets and validations | Latency-sensitive |
+| Timetable maintenance | Routes, route stops and trips | Operator write workload |
+| Real-time availability | Trips and remaining capacity | Read much more frequently than updated |
+| Reporting | Tickets, payments and validations | Can tolerate delayed data |
+
+Only route maintenance and scheduled-trip queries are implemented
+during Lecture 1.
+
+## Route-stop primary key
+
+The primary key of `route_stops` is:
+
+`(route_id, stop_sequence)`
+
+The stop sequence identifies a particular occurrence of a stop on a route.
+
+This model allows the same physical stop to occur more than once on
+the same route. This is useful for routes that loop or revisit a stop.
+
+Using `(route_id, stop_id)` as the primary key would prevent the same
+stop from appearing more than once on a route.
+
+## Functional dependency
+
+For the `routes` relation:
+
+`route_id -> operator_id, city_id, mode, short_name`
+
+A route identifier uniquely determines the operator, city, mode,
+and short name of that route.
+
+Operators are stored separately from routes. This avoids repeating
+operator information for every route and reduces update anomalies.
+
+## ER diagram
+
+```mermaid
+erDiagram
+    OPERATORS ||--o{ ROUTES : operates
+    ROUTES ||--o{ ROUTE_STOPS : contains
+    STOPS ||--o{ ROUTE_STOPS : appears_in
+    ROUTES ||--o{ TRIPS : schedules
+
+    OPERATORS {
+        text id PK
+        text name
+    }
+
+    ROUTES {
+        text id PK
+        text operator_id FK
+        text city_id
+        text mode
+        text short_name
+    }
+
+    STOPS {
+        text id PK
+        text city_id
+        text name
+    }
+
+    ROUTE_STOPS {
+        text route_id PK,FK
+        text stop_id FK
+        integer stop_sequence PK
+    }
+
+    TRIPS {
+        text id PK
+        text route_id FK
+        date service_date
+        timestamptz scheduled_departure_utc
+        text status
+    }
